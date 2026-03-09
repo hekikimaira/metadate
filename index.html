@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Metadata Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3a;
+    --accent: #00d4aa;
+    --accent2: #00a8ff;
+    --accent-dim: #00d4aa22;
+    --text: #e0e0e8;
+    --text-dim: #888898;
+    --warn: #ff6b6b;
+    --tag-bg: #1e1e2e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  header {
+    padding: 2rem 2rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #0e0e18 0%, var(--bg) 100%);
+  }
+
+  header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+
+  header h1 span { color: var(--text-dim); font-weight: 400; }
+
+  header p { color: var(--text-dim); font-size: 0.8rem; margin-top: 0.3rem; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+
+  /* Drop Zone */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .dropzone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, var(--accent-dim), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--accent);
+  }
+
+  .dropzone:hover::before, .dropzone.dragover::before { opacity: 1; }
+
+  .dropzone-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.8rem;
+    display: block;
+  }
+
+  .dropzone-text { color: var(--text-dim); font-size: 0.9rem; }
+  .dropzone-text strong { color: var(--accent); }
+
+  .dropzone input { display: none; }
+
+  /* Results */
+  .results { display: none; margin-top: 1.5rem; gap: 1.5rem; }
+  .results.show { display: grid; grid-template-columns: 280px 1fr; }
+
+  @media (max-width: 768px) {
+    .results.show { grid-template-columns: 1fr; }
+  }
+
+  .preview-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+    position: sticky;
+    top: 1.5rem;
+    align-self: start;
+  }
+
+  .preview-panel img {
+    width: 100%;
+    border-radius: 8px;
+    display: block;
+    margin-bottom: 0.8rem;
+    background: #000;
+  }
+
+  .file-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent);
+    word-break: break-all;
+    margin-bottom: 0.5rem;
+  }
+
+  .file-basic {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .file-basic span { color: var(--text); }
+
+  .data-panel { display: flex; flex-direction: column; gap: 1rem; }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 0.8rem 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .section-header .arrow {
+    transition: transform 0.2s;
+    font-size: 0.65rem;
+  }
+
+  .section-header.collapsed .arrow { transform: rotate(-90deg); }
+
+  .section-body { padding: 0; }
+  .section-header.collapsed + .section-body { display: none; }
+
+  .meta-row {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  .meta-row:last-child { border-bottom: none; }
+
+  .meta-key {
+    padding: 0.45rem 1rem;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    background: rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+  }
+
+  .meta-val {
+    padding: 0.45rem 1rem;
+    word-break: break-all;
+    display: flex;
+    align-items: center;
+  }
+
+  .meta-val.gps-link { color: var(--accent2); cursor: pointer; text-decoration: underline; }
+  .meta-val.gps-link:hover { color: var(--accent); }
+
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+  }
+
+  .badge-green { background: #00d4aa20; color: var(--accent); }
+  .badge-blue { background: #00a8ff20; color: var(--accent2); }
+  .badge-red { background: #ff6b6b20; color: var(--warn); }
+  .badge-gray { background: #88889820; color: var(--text-dim); }
+
+  .no-data {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+  }
+
+  .raw-toggle {
+    margin-top: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.2s;
+  }
+
+  .raw-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+  #rawDump {
+    display: none;
+    margin-top: 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    max-height: 400px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .clear-btn {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    padding: 0.6rem 1.2rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.2s;
+    z-index: 10;
+  }
+
+  .clear-btn:hover { border-color: var(--warn); color: var(--warn); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&gt; meta<span>::analyze</span></h1>
+  <p>画像ファイルのEXIF・メタデータを解析</p>
+</header>
+
+<div class="container">
+  <div class="dropzone" id="dropzone">
+    <span class="dropzone-icon">📷</span>
+    <div class="dropzone-text">
+      ドラッグ&ドロップ または <strong>クリックして選択</strong><br>
+      <small>JPEG / PNG / WebP / TIFF / GIF</small>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" />
+  </div>
+
+  <div class="results" id="results">
+    <div class="preview-panel">
+      <img id="previewImg" src="" alt="preview" />
+      <div class="file-name" id="fileName"></div>
+      <div class="file-basic" id="fileBasic"></div>
+    </div>
+
+    <div class="data-panel" id="dataPanel"></div>
+  </div>
+</div>
+
+<button class="clear-btn" id="clearBtn" style="display:none;" onclick="clearAll()">✕ クリア</button>
+
+<script>
+// ─── EXIF Tag Definitions ───
+const EXIF_TAGS = {
+  0x010e: 'ImageDescription', 0x010f: 'Make', 0x0110: 'Model',
+  0x0112: 'Orientation', 0x011a: 'XResolution', 0x011b: 'YResolution',
+  0x0128: 'ResolutionUnit', 0x0131: 'Software', 0x0132: 'DateTime',
+  0x013b: 'Artist', 0x0213: 'YCbCrPositioning',
+  0x8298: 'Copyright', 0x8769: 'ExifIFDPointer', 0x8825: 'GPSInfoIFDPointer',
+  // Exif Sub IFD
+  0x829a: 'ExposureTime', 0x829d: 'FNumber',
+  0x8822: 'ExposureProgram', 0x8827: 'ISOSpeedRatings',
+  0x9000: 'ExifVersion', 0x9003: 'DateTimeOriginal', 0x9004: 'DateTimeDigitized',
+  0x9101: 'ComponentsConfiguration', 0x9102: 'CompressedBitsPerPixel',
+  0x9201: 'ShutterSpeedValue', 0x9202: 'ApertureValue',
+  0x9203: 'BrightnessValue', 0x9204: 'ExposureBiasValue',
+  0x9205: 'MaxApertureValue', 0x9206: 'SubjectDistance',
+  0x9207: 'MeteringMode', 0x9208: 'LightSource', 0x9209: 'Flash',
+  0x920a: 'FocalLength', 0x927c: 'MakerNote',
+  0x9286: 'UserComment',
+  0xa000: 'FlashpixVersion', 0xa001: 'ColorSpace',
+  0xa002: 'PixelXDimension', 0xa003: 'PixelYDimension',
+  0xa005: 'InteroperabilityIFDPointer',
+  0xa20e: 'FocalPlaneXResolution', 0xa20f: 'FocalPlaneYResolution',
+  0xa210: 'FocalPlaneResolutionUnit',
+  0xa217: 'SensingMethod', 0xa300: 'FileSource', 0xa301: 'SceneType',
+  0xa401: 'CustomRendered', 0xa402: 'ExposureMode',
+  0xa403: 'WhiteBalance', 0xa404: 'DigitalZoomRatio',
+  0xa405: 'FocalLengthIn35mmFilm', 0xa406: 'SceneCaptureType',
+  0xa407: 'GainControl', 0xa408: 'Contrast',
+  0xa409: 'Saturation', 0xa40a: 'Sharpness',
+  0xa431: 'BodySerialNumber', 0xa432: 'LensSpecification',
+  0xa433: 'LensMake', 0xa434: 'LensModel', 0xa435: 'LensSerialNumber',
+};
+
+const GPS_TAGS = {
+  0x0000: 'GPSVersionID', 0x0001: 'GPSLatitudeRef', 0x0002: 'GPSLatitude',
+  0x0003: 'GPSLongitudeRef', 0x0004: 'GPSLongitude',
+  0x0005: 'GPSAltitudeRef', 0x0006: 'GPSAltitude',
+  0x0007: 'GPSTimeStamp', 0x0008: 'GPSSatellites',
+  0x0009: 'GPSStatus', 0x000a: 'GPSMeasureMode',
+  0x000b: 'GPSDOP', 0x000c: 'GPSSpeedRef', 0x000d: 'GPSSpeed',
+  0x000e: 'GPSTrackRef', 0x000f: 'GPSTrack',
+  0x0010: 'GPSImgDirectionRef', 0x0011: 'GPSImgDirection',
+  0x0012: 'GPSMapDatum', 0x001d: 'GPSDateStamp',
+};
+
+const ORIENTATION_MAP = {
+  1: '通常', 2: '左右反転', 3: '180°回転', 4: '上下反転',
+  5: '反転+90°CW', 6: '90°CW', 7: '反転+270°CW', 8: '270°CW'
+};
+
+const METERING_MAP = {
+  0: '不明', 1: '平均', 2: '中央重点', 3: 'スポット',
+  4: 'マルチスポット', 5: 'マルチセグメント', 6: '部分', 255: 'その他'
+};
+
+const EXPOSURE_PROG_MAP = {
+  0: '不明', 1: 'マニュアル', 2: 'プログラムAE', 3: '絞り優先',
+  4: 'シャッター優先', 5: 'クリエイティブ', 6: 'アクション',
+  7: 'ポートレート', 8: '風景'
+};
+
+const FLASH_MAP = {
+  0x0: '発光なし', 0x1: '発光', 0x5: '発光(リターン未検出)',
+  0x7: '発光(リターン検出)', 0x9: '強制発光', 0x10: '発光禁止',
+  0x18: 'オート(発光なし)', 0x19: 'オート(発光)',
+  0x41: '発光(赤目軽減)', 0x49: '強制発光(赤目軽減)',
+};
+
+// ─── EXIF Parser ───
+class ExifParser {
+  constructor(buffer) {
+    this.view = new DataView(buffer);
+    this.littleEndian = false;
+    this.exifData = {};
+    this.gpsData = {};
+    this.rawEntries = [];
+  }
+
+  parse() {
+    if (this.view.getUint16(0) !== 0xFFD8) return null; // Not JPEG
+
+    let offset = 2;
+    while (offset < this.view.byteLength - 1) {
+      const marker = this.view.getUint16(offset);
+      if (marker === 0xFFE1) { // APP1
+        const length = this.view.getUint16(offset + 2);
+        this.parseAPP1(offset + 4, length - 2);
+        break;
+      } else if ((marker & 0xFF00) !== 0xFF00) {
+        break;
+      } else {
+        const segLen = this.view.getUint16(offset + 2);
+        offset += 2 + segLen;
+      }
+    }
+    return { exif: this.exifData, gps: this.gpsData, raw: this.rawEntries };
+  }
+
+  parseAPP1(offset, length) {
+    // Check "Exif\0\0"
+    const header = String.fromCharCode(
+      this.view.getUint8(offset), this.view.getUint8(offset+1),
+      this.view.getUint8(offset+2), this.view.getUint8(offset+3)
+    );
+    if (header !== 'Exif') return;
+
+    const tiffStart = offset + 6;
+    const byteOrder = this.view.getUint16(tiffStart);
+    this.littleEndian = byteOrder === 0x4949; // 'II'
+
+    const ifdOffset = this.getUint32(tiffStart + 4);
+    this.parseIFD(tiffStart, tiffStart + ifdOffset, EXIF_TAGS, this.exifData);
+
+    // Parse Exif Sub IFD
+    if (this.exifData.ExifIFDPointer) {
+      this.parseIFD(tiffStart, tiffStart + this.exifData.ExifIFDPointer, EXIF_TAGS, this.exifData);
+      delete this.exifData.ExifIFDPointer;
+    }
+
+    // Parse GPS IFD
+    if (this.exifData.GPSInfoIFDPointer) {
+      this.parseIFD(tiffStart, tiffStart + this.exifData.GPSInfoIFDPointer, GPS_TAGS, this.gpsData);
+      delete this.exifData.GPSInfoIFDPointer;
+    }
+  }
+
+  parseIFD(tiffStart, ifdOffset, tagMap, target) {
+    try {
+      const entries = this.getUint16(ifdOffset);
+      for (let i = 0; i < entries; i++) {
+        const entryOffset = ifdOffset + 2 + i * 12;
+        const tag = this.getUint16(entryOffset);
+        const type = this.getUint16(entryOffset + 2);
+        const count = this.getUint32(entryOffset + 4);
+        const valueOffset = entryOffset + 8;
+
+        const tagName = tagMap[tag] || `Tag_0x${tag.toString(16).padStart(4,'0')}`;
+        const value = this.readTagValue(tiffStart, type, count, valueOffset);
+
+        target[tagName] = value;
+        this.rawEntries.push({ tag: `0x${tag.toString(16).padStart(4,'0')}`, name: tagName, type, count, value });
+      }
+    } catch(e) { /* partial parse is ok */ }
+  }
+
+  readTagValue(tiffStart, type, count, valueOffset) {
+    const typeSize = [0,1,1,2,4,8,1,1,2,4,8,4,8][type] || 1;
+    const totalSize = typeSize * count;
+    let dataOffset = valueOffset;
+    if (totalSize > 4) {
+      dataOffset = tiffStart + this.getUint32(valueOffset);
+    }
+
+    try {
+      switch(type) {
+        case 1: case 7: // BYTE / UNDEFINED
+          if (count <= 4) {
+            const arr = [];
+            for (let i=0; i<count; i++) arr.push(this.view.getUint8(dataOffset+i));
+            return count === 1 ? arr[0] : arr;
+          }
+          return `[${count} bytes]`;
+        case 2: // ASCII
+          let str = '';
+          for (let i=0; i<count-1; i++) {
+            const c = this.view.getUint8(dataOffset+i);
+            if (c === 0) break;
+            str += String.fromCharCode(c);
+          }
+          return str;
+        case 3: // SHORT
+          if (count === 1) return this.getUint16(dataOffset);
+          const shorts = [];
+          for (let i=0; i<count; i++) shorts.push(this.getUint16(dataOffset + i*2));
+          return shorts;
+        case 4: // LONG
+          if (count === 1) return this.getUint32(dataOffset);
+          const longs = [];
+          for (let i=0; i<count; i++) longs.push(this.getUint32(dataOffset + i*4));
+          return longs;
+        case 5: // RATIONAL
+          if (count === 1) {
+            const num = this.getUint32(dataOffset);
+            const den = this.getUint32(dataOffset+4);
+            return den === 0 ? 0 : num / den;
+          }
+          const rats = [];
+          for (let i=0; i<count; i++) {
+            const n = this.getUint32(dataOffset+i*8);
+            const d = this.getUint32(dataOffset+i*8+4);
+            rats.push(d === 0 ? 0 : n / d);
+          }
+          return rats;
+        case 10: // SRATIONAL
+          if (count === 1) {
+            const sn = this.getInt32(dataOffset);
+            const sd = this.getInt32(dataOffset+4);
+            return sd === 0 ? 0 : sn / sd;
+          }
+          const srats = [];
+          for (let i=0; i<count; i++) {
+            const sn = this.getInt32(dataOffset+i*8);
+            const sd = this.getInt32(dataOffset+i*8+4);
+            srats.push(sd === 0 ? 0 : sn / sd);
+          }
+          return srats;
+        default:
+          return `[type=${type}, count=${count}]`;
+      }
+    } catch(e) {
+      return '[読み取りエラー]';
+    }
+  }
+
+  getUint16(o) { return this.view.getUint16(o, this.littleEndian); }
+  getUint32(o) { return this.view.getUint32(o, this.littleEndian); }
+  getInt32(o) { return this.view.getInt32(o, this.littleEndian); }
+}
+
+// ─── PNG Metadata Parser ───
+function parsePNGMeta(buffer) {
+  const view = new DataView(buffer);
+  const meta = {};
+
+  // Check PNG signature
+  if (view.getUint32(0) !== 0x89504E47) return null;
+
+  // IHDR
+  const w = view.getUint32(16);
+  const h = view.getUint32(20);
+  const bitDepth = view.getUint8(24);
+  const colorType = view.getUint8(25);
+  const compression = view.getUint8(26);
+  const filter = view.getUint8(27);
+  const interlace = view.getUint8(28);
+
+  meta.width = w;
+  meta.height = h;
+  meta.bitDepth = bitDepth;
+  meta.colorType = ['グレースケール','','RGB','パレット','グレースケール+α','','RGBA'][colorType] || colorType;
+  meta.interlace = interlace ? 'Adam7' : 'なし';
+
+  // Parse text chunks
+  const textChunks = [];
+  let offset = 8;
+  const decoder = new TextDecoder('utf-8', { fatal: false });
+
+  while (offset < buffer.byteLength - 8) {
+    const chunkLen = view.getUint32(offset);
+    const chunkType = String.fromCharCode(
+      view.getUint8(offset+4), view.getUint8(offset+5),
+      view.getUint8(offset+6), view.getUint8(offset+7)
+    );
+
+    if (chunkType === 'tEXt' || chunkType === 'iTXt') {
+      try {
+        const data = new Uint8Array(buffer, offset+8, chunkLen);
+        const nullIdx = data.indexOf(0);
+        const key = decoder.decode(data.slice(0, nullIdx));
+        let val;
+        if (chunkType === 'iTXt') {
+          // iTXt: keyword\0 compressionFlag compressionMethod lang\0 translatedKeyword\0 text
+          let p = nullIdx + 3; // skip null, compFlag, compMethod
+          const langEnd = data.indexOf(0, p);
+          p = langEnd + 1;
+          const tkEnd = data.indexOf(0, p);
+          p = tkEnd + 1;
+          val = decoder.decode(data.slice(p));
+        } else {
+          val = decoder.decode(data.slice(nullIdx+1));
+        }
+        textChunks.push({ key, value: val });
+      } catch(e) {}
+    }
+
+    if (chunkType === 'pHYs' && chunkLen >= 9) {
+      const pxX = view.getUint32(offset+8);
+      const pxY = view.getUint32(offset+12);
+      const unit = view.getUint8(offset+16);
+      if (unit === 1) {
+        meta.dpiX = Math.round(pxX / 39.3701);
+        meta.dpiY = Math.round(pxY / 39.3701);
+      }
+    }
+
+    if (chunkType === 'IEND') break;
+    offset += 12 + chunkLen;
+  }
+
+  meta.textChunks = textChunks;
+  return meta;
+}
+
+// ─── UI Logic ───
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const results = document.getElementById('results');
+const dataPanel = document.getElementById('dataPanel');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  if (!file.type.startsWith('image/')) {
+    alert('画像ファイルを選択してください');
+    return;
+  }
+
+  // Preview
+  const url = URL.createObjectURL(file);
+  document.getElementById('previewImg').src = url;
+  document.getElementById('fileName').textContent = file.name;
+
+  const img = new Image();
+  img.onload = () => {
+    document.getElementById('fileBasic').innerHTML =
+      `サイズ: <span>${formatBytes(file.size)}</span><br>` +
+      `タイプ: <span>${file.type}</span><br>` +
+      `画像寸法: <span>${img.naturalWidth} × ${img.naturalHeight} px</span><br>` +
+      `最終更新: <span>${new Date(file.lastModified).toLocaleString('ja-JP')}</span>`;
+  };
+  img.src = url;
+
+  // Parse
+  const reader = new FileReader();
+  reader.onload = () => {
+    const buffer = reader.result;
+    dataPanel.innerHTML = '';
+
+    if (file.type === 'image/jpeg' || file.type === 'image/tiff') {
+      const parser = new ExifParser(buffer);
+      const result = parser.parse();
+      if (result) {
+        renderExifResults(result);
+      } else {
+        dataPanel.innerHTML = '<div class="no-data">EXIFデータが見つかりませんでした</div>';
+      }
+    } else if (file.type === 'image/png') {
+      const meta = parsePNGMeta(buffer);
+      if (meta) {
+        renderPNGResults(meta);
+      } else {
+        dataPanel.innerHTML = '<div class="no-data">PNGメタデータが見つかりませんでした</div>';
+      }
+    } else {
+      dataPanel.innerHTML = '<div class="no-data">この形式のメタデータ解析は限定的です。<br>JPEG/PNGで最も詳細な情報が取得できます。</div>';
+    }
+
+    results.classList.add('show');
+    document.getElementById('clearBtn').style.display = 'block';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderExifResults(result) {
+  const { exif, gps, raw } = result;
+
+  // Camera section
+  const cameraFields = pickFields(exif, [
+    ['Make', 'メーカー'],
+    ['Model', 'カメラモデル'],
+    ['LensMake', 'レンズメーカー'],
+    ['LensModel', 'レンズモデル'],
+    ['BodySerialNumber', 'シリアル番号'],
+    ['Software', 'ソフトウェア'],
+  ]);
+  if (cameraFields.length) addSection('📷 カメラ情報', cameraFields);
+
+  // Shooting section
+  const shootFields = [];
+  if (exif.ExposureTime != null) {
+    const et = exif.ExposureTime;
+    shootFields.push(['露出時間', et < 1 ? `1/${Math.round(1/et)}秒` : `${et}秒`]);
+  }
+  if (exif.FNumber != null) shootFields.push(['F値', `f/${exif.FNumber}`]);
+  if (exif.ISOSpeedRatings != null) shootFields.push(['ISO感度', exif.ISOSpeedRatings]);
+  if (exif.FocalLength != null) shootFields.push(['焦点距離', `${exif.FocalLength}mm`]);
+  if (exif.FocalLengthIn35mmFilm != null) shootFields.push(['35mm換算', `${exif.FocalLengthIn35mmFilm}mm`]);
+  if (exif.ExposureBiasValue != null) shootFields.push(['露出補正', `${exif.ExposureBiasValue > 0 ? '+' : ''}${exif.ExposureBiasValue.toFixed(1)} EV`]);
+  if (exif.ExposureProgram != null) shootFields.push(['露出プログラム', EXPOSURE_PROG_MAP[exif.ExposureProgram] || exif.ExposureProgram]);
+  if (exif.MeteringMode != null) shootFields.push(['測光モード', METERING_MAP[exif.MeteringMode] || exif.MeteringMode]);
+  if (exif.Flash != null) shootFields.push(['フラッシュ', FLASH_MAP[exif.Flash] || `0x${exif.Flash.toString(16)}`]);
+  if (exif.WhiteBalance != null) shootFields.push(['ホワイトバランス', exif.WhiteBalance === 0 ? '自動' : 'マニュアル']);
+  if (shootFields.length) addSection('⚙️ 撮影設定', shootFields);
+
+  // Date section
+  const dateFields = pickFields(exif, [
+    ['DateTimeOriginal', '撮影日時'],
+    ['DateTimeDigitized', 'デジタル化日時'],
+    ['DateTime', '更新日時'],
+  ]);
+  if (dateFields.length) addSection('📅 日時情報', dateFields);
+
+  // Image section
+  const imgFields = [];
+  if (exif.PixelXDimension) imgFields.push(['元画像幅', `${exif.PixelXDimension} px`]);
+  if (exif.PixelYDimension) imgFields.push(['元画像高さ', `${exif.PixelYDimension} px`]);
+  if (exif.Orientation) imgFields.push(['回転', ORIENTATION_MAP[exif.Orientation] || exif.Orientation]);
+  if (exif.ColorSpace != null) imgFields.push(['色空間', exif.ColorSpace === 1 ? 'sRGB' : exif.ColorSpace === 0xFFFF ? 'Uncalibrated' : exif.ColorSpace]);
+  if (exif.XResolution) imgFields.push(['X解像度', exif.XResolution]);
+  if (exif.YResolution) imgFields.push(['Y解像度', exif.YResolution]);
+  if (imgFields.length) addSection('🖼️ 画像詳細', imgFields);
+
+  // GPS section
+  if (gps.GPSLatitude && gps.GPSLongitude) {
+    const lat = dmsToDecimal(gps.GPSLatitude, gps.GPSLatitudeRef);
+    const lng = dmsToDecimal(gps.GPSLongitude, gps.GPSLongitudeRef);
+    const gpsFields = [
+      ['緯度', `${lat.toFixed(6)}° (${gps.GPSLatitudeRef})`],
+      ['経度', `${lng.toFixed(6)}° (${gps.GPSLongitudeRef})`],
+    ];
+    if (gps.GPSAltitude != null) {
+      const altRef = gps.GPSAltitudeRef === 1 ? '海面下' : '海抜';
+      gpsFields.push(['高度', `${altRef} ${gps.GPSAltitude.toFixed(1)}m`]);
+    }
+    if (gps.GPSDateStamp) gpsFields.push(['GPS日付', gps.GPSDateStamp]);
+    gpsFields.push(['📍 Google Maps', `__GPS_LINK__${lat},${lng}`]);
+    addSection('🌍 GPS位置情報', gpsFields);
+  } else {
+    addSection('🌍 GPS位置情報', [], 'GPSデータなし');
+  }
+
+  // Other/Copyright
+  const otherFields = pickFields(exif, [
+    ['Artist', '作者'],
+    ['Copyright', '著作権'],
+    ['ImageDescription', '説明'],
+  ]);
+  if (otherFields.length) addSection('📝 その他', otherFields);
+
+  // Raw dump button
+  const btn = document.createElement('button');
+  btn.className = 'raw-toggle';
+  btn.textContent = '▸ RAWデータを表示';
+  btn.onclick = () => {
+    const dump = document.getElementById('rawDump');
+    if (dump.style.display === 'none') {
+      dump.style.display = 'block';
+      btn.textContent = '▾ RAWデータを隠す';
+    } else {
+      dump.style.display = 'none';
+      btn.textContent = '▸ RAWデータを表示';
+    }
+  };
+  dataPanel.appendChild(btn);
+
+  const dump = document.createElement('div');
+  dump.id = 'rawDump';
+  dump.textContent = raw.map(r =>
+    `${r.tag} ${r.name}: ${typeof r.value === 'object' ? JSON.stringify(r.value) : r.value}`
+  ).join('\n');
+  dataPanel.appendChild(dump);
+}
+
+function renderPNGResults(meta) {
+  const imgFields = [
+    ['幅', `${meta.width} px`],
+    ['高さ', `${meta.height} px`],
+    ['ビット深度', meta.bitDepth],
+    ['カラータイプ', meta.colorType],
+    ['インターレース', meta.interlace],
+  ];
+  if (meta.dpiX) imgFields.push(['DPI', `${meta.dpiX} × ${meta.dpiY}`]);
+  addSection('🖼️ PNG情報', imgFields);
+
+  if (meta.textChunks && meta.textChunks.length) {
+    const textFields = meta.textChunks.map(c => {
+      let val = c.value;
+      if (val.length > 300) val = val.substring(0, 300) + '…';
+      return [c.key, val];
+    });
+    addSection('📝 テキストチャンク', textFields);
+  }
+}
+
+function addSection(title, fields, emptyMsg) {
+  const sec = document.createElement('div');
+  sec.className = 'section';
+
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `<span class="arrow">▼</span> ${title}`;
+  header.onclick = () => header.classList.toggle('collapsed');
+  sec.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'section-body';
+
+  if (fields.length === 0 && emptyMsg) {
+    body.innerHTML = `<div class="no-data">${emptyMsg}</div>`;
+  } else {
+    fields.forEach(([key, val]) => {
+      const row = document.createElement('div');
+      row.className = 'meta-row';
+
+      const keyEl = document.createElement('div');
+      keyEl.className = 'meta-key';
+      keyEl.textContent = key;
+
+      const valEl = document.createElement('div');
+      valEl.className = 'meta-val';
+
+      if (typeof val === 'string' && val.startsWith('__GPS_LINK__')) {
+        const coords = val.replace('__GPS_LINK__', '');
+        valEl.className = 'meta-val gps-link';
+        valEl.textContent = `Google Mapsで開く (${coords})`;
+        valEl.onclick = () => window.open(`https://www.google.com/maps?q=${coords}`, '_blank');
+      } else {
+        valEl.textContent = val;
+      }
+
+      row.appendChild(keyEl);
+      row.appendChild(valEl);
+      body.appendChild(row);
+    });
+  }
+
+  sec.appendChild(body);
+  dataPanel.appendChild(sec);
+}
+
+function pickFields(obj, mapping) {
+  const result = [];
+  mapping.forEach(([key, label]) => {
+    if (obj[key] != null && obj[key] !== '') result.push([label, obj[key]]);
+  });
+  return result;
+}
+
+function dmsToDecimal(dms, ref) {
+  if (Array.isArray(dms) && dms.length === 3) {
+    let dec = dms[0] + dms[1]/60 + dms[2]/3600;
+    if (ref === 'S' || ref === 'W') dec = -dec;
+    return dec;
+  }
+  return 0;
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function clearAll() {
+  results.classList.remove('show');
+  dataPanel.innerHTML = '';
+  document.getElementById('previewImg').src = '';
+  document.getElementById('fileName').textContent = '';
+  document.getElementById('fileBasic').innerHTML = '';
+  document.getElementById('clearBtn').style.display = 'none';
+  fileInput.value = '';
+}
+</script>
+</body>
+</html>
