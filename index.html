@@ -91,9 +91,28 @@
 
   .dropzone input { display: none; }
 
+  .hidden { display: none !important; }
+
   /* Results */
-  .results { display: none; margin-top: 1.5rem; gap: 1.5rem; }
+  .results { display: none; gap: 1.5rem; }
   .results.show { display: grid; grid-template-columns: 280px 1fr; }
+
+  .reload-btn {
+    display: block;
+    width: 100%;
+    padding: 0.5rem;
+    margin-top: 0.6rem;
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.2s;
+  }
+
+  .reload-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   @media (max-width: 768px) {
     .results.show { grid-template-columns: 1fr; }
@@ -290,6 +309,7 @@
       <img id="previewImg" src="" alt="preview" />
       <div class="file-name" id="fileName"></div>
       <div class="file-basic" id="fileBasic"></div>
+      <button class="reload-btn" onclick="fileInput.click()">📷 別の画像を選択</button>
     </div>
 
     <div class="data-panel" id="dataPanel"></div>
@@ -608,6 +628,15 @@ dropzone.addEventListener('drop', e => {
 });
 fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
 
+// Allow drag-drop anywhere when results are visible
+document.body.addEventListener('dragover', e => { e.preventDefault(); });
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length && e.dataTransfer.files[0].type.startsWith('image/')) {
+    handleFile(e.dataTransfer.files[0]);
+  }
+});
+
 function handleFile(file) {
   if (!file.type.startsWith('image/')) {
     alert('画像ファイルを選択してください');
@@ -656,6 +685,8 @@ function handleFile(file) {
 
     results.classList.add('show');
     document.getElementById('clearBtn').style.display = 'block';
+    document.querySelector('header').classList.add('hidden');
+    dropzone.classList.add('hidden');
   };
   reader.readAsArrayBuffer(file);
 }
@@ -857,6 +888,8 @@ function clearAll() {
   document.getElementById('fileName').textContent = '';
   document.getElementById('fileBasic').innerHTML = '';
   document.getElementById('clearBtn').style.display = 'none';
+  document.querySelector('header').classList.remove('hidden');
+  dropzone.classList.remove('hidden');
   fileInput.value = '';
 }
 </script>
