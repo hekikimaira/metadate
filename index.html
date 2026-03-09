@@ -136,6 +136,29 @@
     background: #000;
   }
 
+  .img-toggle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 0.3rem 0;
+    margin-bottom: 0.5rem;
+    user-select: none;
+  }
+
+  .img-toggle:hover { color: var(--accent); }
+
+  .img-toggle .arrow {
+    display: inline-block;
+    transition: transform 0.2s;
+    font-size: 0.6rem;
+  }
+
+  .img-toggle.collapsed .arrow { transform: rotate(-90deg); }
+
+  #imgWrap { overflow: hidden; transition: max-height 0.3s ease; }
+  #imgWrap.collapsed { max-height: 0 !important; margin: 0; }
+
   .file-name {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
@@ -306,7 +329,12 @@
 
   <div class="results" id="results">
     <div class="preview-panel">
-      <img id="previewImg" src="" alt="preview" />
+      <div class="img-toggle" id="imgToggle" onclick="togglePreview()">
+        <span class="arrow" id="imgArrow">▼</span> プレビュー
+      </div>
+      <div id="imgWrap">
+        <img id="previewImg" src="" alt="preview" />
+      </div>
       <div class="file-name" id="fileName"></div>
       <div class="file-basic" id="fileBasic"></div>
       <button class="reload-btn" onclick="fileInput.click()">📷 別の画像を選択</button>
@@ -881,6 +909,13 @@ function formatBytes(b) {
   return (b/(1024*1024)).toFixed(1) + ' MB';
 }
 
+function togglePreview() {
+  const toggle = document.getElementById('imgToggle');
+  const wrap = document.getElementById('imgWrap');
+  toggle.classList.toggle('collapsed');
+  wrap.classList.toggle('collapsed');
+}
+
 function clearAll() {
   results.classList.remove('show');
   dataPanel.innerHTML = '';
@@ -890,6 +925,8 @@ function clearAll() {
   document.getElementById('clearBtn').style.display = 'none';
   document.querySelector('header').classList.remove('hidden');
   dropzone.classList.remove('hidden');
+  document.getElementById('imgToggle').classList.remove('collapsed');
+  document.getElementById('imgWrap').classList.remove('collapsed');
   fileInput.value = '';
 }
 </script>
